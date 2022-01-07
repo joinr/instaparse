@@ -266,21 +266,38 @@
   (profile (add! :push-stack))
   (swap! (:stack tramp) conj item))
 
+(defn assoc2 [m k1 k2 v]
+  (assoc m k1 (assoc (m k1) k2 v)))
+
+(defn get2 [m k1 k2 default]
+  (or (when-let [outer (m k1)]
+        (when-let [inner (outer k2 default)]
+          inner))
+      default))
+
+(def ll (atom nil))
+(def li (atom nil))
+;;Tom: we can do substantially better here...hot loop.
 (defn push-message
   "Pushes onto stack a message to a given listener about a result"
-  [tramp listener result]
-  (let [cache (:msg-cache tramp)
+  [^Tramp tramp listener result]
+  (let [cache (#_:msg-cache .-msg-cache tramp)
         i (:index result)
-        k [listener i]
-        c (get @cache k 0)
-        f #(listener result)]
-    (profile (add! :push-message))    
+        _ (reset! li i)
+        #_#_k [listener i]
+        c (get2 @cache listener i 0) #_(get @cache k 0) ;;instead of vector keys, use a nested map.
+        f #(listener result)
+        _ (reset! ll listener)
+        ]
+    (profile (add! :push-message))
     #_(dprintln "push-message" i c @(:generation tramp) (count @(:stack tramp))
              (count @(:next-stack tramp)))
     #_(dprintln "push-message: listener result" listener result)
     (if (> c @(:generation tramp))
       (swap! (:next-stack tramp) conj f)
       (swap! (:stack tramp) conj f))
+    (swap! cache #(assoc2 % listener i (inc c)))
+    #_
     (swap! cache assoc k (inc c))))
     
 (defn listener-exists?
